@@ -8,7 +8,8 @@ switch(process.argv[2]) {
     case 'create':
         if( !(title = process.argv[3]) )
             helpCreate();        
-        create(title);
+        else
+            create(title);
         break;
     case 'run': 
         run();
