@@ -1,12 +1,22 @@
 #!/usr/bin/env node
 
+process.on('uncaughtException', function(err) {
+  console.log('ERROR', err);
+});
+
 var path = require('path')
   , rest = require('restler')
   , fs   = require('fs')
   , prompt = require('prompt')
   , home = process.env.HOME
+  , q    = require('q')
   , title
 ;
+
+/**
+ *  Defaults
+ */
+prompt.message = prompt.delimiter = '';
 
 switch(process.argv[2]) {
     case 'create':
@@ -21,9 +31,95 @@ switch(process.argv[2]) {
     case 'login':
         login();
         break;
+    case 'push':
+        push();
+        break;
+    case 'repository':
+        repository();
+        break;
     default: 
         help();
         return;
+}
+
+
+function repository() {
+    var repo = process.argv[3];
+
+    getJsonFile(getPackageFilename(), function(err, package) {
+        if(!repo) {
+            prompt.get({ properties: { repository: { message: 'Git Repo Url:' }}}, function(err, result) {
+                if(err) return console.error(err);
+
+                repo = result.repository;
+                next();
+            });
+        } else {
+            next();
+        }
+
+        function next() {
+            if(!repo) 
+                return console.error("ERROR", "Repository url required");
+
+            package.repository = {
+                type  : 'git'
+                , url : repo
+            };
+
+            fs.writeFile(getPackageFilename(), JSON.stringify(package, null, 4), function(err) {
+                if(err) console.error('ERROR', err);
+            });
+        }
+    });
+}
+
+/**
+ * Register a git module to dexter
+ * 
+ * @access public
+ * @return void
+ */
+function push() {
+    q.all([
+        q.nfcall(getJsonFile, getConfigFilename()), 
+        q.nfcall(getJsonFile, getPackageFilename()),
+    ]).then(function(results) {
+        var config = results[0]
+          , package= results[1]
+        ;
+
+        assertLoggedIn(config);
+        assertPublishable(package);
+
+        var baseUrl = config.baseUrl || 'https://rundexter.com/api/'
+          , pushUrl = baseUrl + 'Module/push'
+          , url = package.repository.url
+        ;
+
+        rest.post(pushUrl,  {
+            headers: {
+                'X-Authorization': config.token
+            }
+            , data: {
+                git_url: url 
+                , name : package.name
+            }
+        }).on('complete', function(result, response) {
+            if(result && result.success) {
+                  console.log('SUCCESS');
+            } else if(result && result.error) {
+                console.error('ERROR', result.error);
+            } else {
+                console.error('ERROR', response.statusCode);
+                if(response.statusCode == 404) {
+                    console.log('requested url: ', pushUrl);
+                }
+            }
+        });
+    }).fail(function(err) {
+        console.log('ERROR', err);
+    });
 }
 
 /**
@@ -44,13 +140,12 @@ function login() {
     if(!user) 
         return helpLogin();
 
-    prompt.message = prompt.delimiter = '';
     prompt.get({ properties: { password: { message: 'Password:', hidden: true }}}, function(err, result) {
 
         if(!(credentials.password = result.password))
             return helpLogin();
 
-        getConfig(function(config) {
+        getJsonFile(getConfigFilename(), function(err, config) {
             baseUrl  = baseUrl || config.baseUrl || 'https://rundexter.com/api/';
             loginUrl = baseUrl + 'auth/login';
 
@@ -160,7 +255,7 @@ function run() {
  */
 
 function help() {
-    console.log('dexter <create|run>');
+    console.log('dexter <create|run|push>');
 }
 
 function helpCreate() {
@@ -168,7 +263,7 @@ function helpCreate() {
 }
 
 function helpLogin() {
-    console.log('dexter login <username>');
+    console.log('dexter login <email>');
 }
 
 function slugify(text) {
@@ -181,13 +276,11 @@ function slugify(text) {
 }
 
 function getUserHome() {
-  return process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE;
+    return process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE;
 }
 
-function getConfig(callback) {
-    var file = getConfigFilename()
-      , config
-    ;
+function getJsonFile(file, callback) {
+    var config;
 
     fs.readFile(file, 'utf8', function(err, configData) {
         if(err) config = {};
@@ -199,12 +292,20 @@ function getConfig(callback) {
             }
         }
 
-        callback(config);
+        callback(null, config);
     });
 }
 
 function getConfigFilename() {
     return getUserHome() + '/.dexter';
+}
+
+function getMetaFilename() {
+    return './meta.json';
+}
+
+function getPackageFilename() {
+    return './package.json';
 }
 
 function writeConfig(config, callback) {
@@ -213,6 +314,19 @@ function writeConfig(config, callback) {
 
         callback(null, config);
     });
+}
+
+function assertPublishable(package) {
+    if(!package.repository)
+        throw "package.json > repository attribute required";
+    else if(package.repository.type != 'git')
+        throw "package.json > repository.type must be git";
+    else if(!package.repository.url)
+        throw "package.json > repository.url required";
+}
+
+function assertLoggedIn(config) {
+    if(!config.token) throw "You need to call dexter login <email> first";
 }
 
 function generateReporter(printData) {
