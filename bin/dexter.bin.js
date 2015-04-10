@@ -117,7 +117,7 @@ function push() {
                 }
             }
         });
-    }).fail(function(err) {
+    }, console.error).fail(function(err) {
         console.log('ERROR', err);
     });
 }
@@ -204,10 +204,31 @@ function create(title) {
     mkdirp(( dest = './'+name ), function(err) {
         if(err) return console.error(err);
 
+
         ncp(__dirname + '/../skel/.', dest, function(err) {
             if(err) return console.error(err);
 
-            console.log('done');
+            process.chdir(dest);
+
+            q.all([
+                //needs to be read as a string so that we can preserve comments
+                q.nfcall(getStringFile, getMetaFilename()),
+                q.nfcall(getJsonFile, getPackageFilename())
+            ]).then(function(results) {
+                var meta = results[0]
+                , package = results[1]
+                ;
+
+                //needs to be treated as a string so that we can preserve comments
+                meta = meta.replace("%MYTITLE%", title);
+                package.name = name;
+                q.all([
+                    q.nfcall(fs.writeFile, getMetaFilename(), meta),
+                    q.nfcall(fs.writeFile, getPackageFilename(), JSON.stringify(package, null, 4)),
+                ]).then(function(results) {
+                    console.log('DONE');
+                }, console.error);
+            }, console.error).fail(console.error);
         });
     });
 }
@@ -277,6 +298,14 @@ function slugify(text) {
 
 function getUserHome() {
     return process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE;
+}
+
+function getStringFile(file, callback) {
+    var config;
+
+    fs.readFile(file, 'utf8', function(err, configData) {
+        callback(null, configData);
+    });
 }
 
 function getJsonFile(file, callback) {
