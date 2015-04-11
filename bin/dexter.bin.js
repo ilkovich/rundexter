@@ -97,6 +97,10 @@ function push() {
           , url = package.repository.url
         ;
 
+        var interval = setInterval(function() {
+            process.stdout.write('.');
+        }, 1000);
+
         rest.post(pushUrl,  {
             headers: {
                 'X-Authorization': config.token
@@ -106,8 +110,11 @@ function push() {
                 , name : package.name
             }
         }).on('complete', function(result, response) {
+            clearInterval(interval);
+
             if(result && result.success) {
                   console.log('SUCCESS');
+                  console.log(result.data);
             } else if(result && result.error) {
                 console.error('ERROR', result.error);
             } else {
@@ -117,6 +124,7 @@ function push() {
                 }
             }
         });
+
     }, console.error).fail(function(err) {
         console.log('ERROR', err);
     });
@@ -276,7 +284,7 @@ function run() {
  */
 
 function help() {
-    console.log('dexter <create|run|push>');
+    console.log('dexter <create|run|push|repository>');
 }
 
 function helpCreate() {
