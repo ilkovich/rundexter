@@ -25,6 +25,9 @@ switch(process.argv[2]) {
         else
             create(title);
         break;
+    case 'key':
+        key();
+        break;
     case 'run': 
         run();
         break;
@@ -42,6 +45,41 @@ switch(process.argv[2]) {
         return;
 }
 
+function key() {
+    q.all([
+        q.nfcall(getJsonFile, getConfigFilename()), 
+    ]).then(function(results) {
+        var config = results[0]
+          , package= results[1]
+        ;
+        assertLoggedIn(config);
+
+        streamToString(function(key) {
+            var baseUrl = config.baseUrl || 'https://rundexter.com/api/'
+              , keyUrl = baseUrl + 'docker/key'
+            ;
+
+            rest.post(keyUrl,  {
+                headers: {
+                    'X-Authorization': config.token
+                }
+                , data: key
+            }).on('complete', function(result, response) {
+                if(result && result.success) {
+                    console.log('SUCCESS');
+                    console.log(result.data);
+                } else if(result && result.error) {
+                    console.error('ERROR', result.error);
+                } else {
+                    console.error('ERROR', response.statusCode);
+                    if(response.statusCode == 404) {
+                        console.log('requested url: ', keyUrl);
+                    }
+                }
+            });
+        });
+    }, console.error);
+}
 
 function repository() {
     var repo = process.argv[3];
@@ -284,7 +322,7 @@ function run() {
  */
 
 function help() {
-    console.log('dexter <create|run|push|repository>');
+    console.log('dexter <create|run|push|repository|key>');
 }
 
 function helpCreate() {
@@ -375,4 +413,15 @@ function generateReporter(printData) {
         else
             return console.log('SUCCESS');
     };
+}
+
+function streamToString(cb) {
+    var content = '';
+    process.stdin.resume();
+    process.stdin.setEncoding('utf-8');
+    process.stdin.on('data', function(buf) { content += buf.toString(); });
+    process.stdin.on('end', function() {
+        // your code here
+        cb(content);
+    });
 }
