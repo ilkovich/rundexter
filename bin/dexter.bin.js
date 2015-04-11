@@ -212,17 +212,6 @@ function login() {
     });
 }
 
-//Courtesy of http://stackoverflow.com/a/105074
-function guid() {
-    function s4() {
-        return Math.floor((1 + Math.random()) * 0x10000)
-            .toString(16)
-            .substring(1);
-    }
-    return s4() + s4() + '-' + s4() + '-' + s4() + '-' +
-        s4() + '-' + s4() + s4() + s4();
-}
-
 function slugify(text) {
   return text.toString().toLowerCase()
     .replace(/\s+/g, '-')           // Replace spaces with -
@@ -291,18 +280,6 @@ function run() {
       , fixtureName = process.argv[3] || 'default'
       , fixture  = require(process.cwd()+'/fixtures/'+fixtureName+'.js')
     ;
-    fixture.internals = {
-        workflow: {
-            id: guid(),
-        },
-        instance: {
-            id: guid(),
-            isTest: true
-        },
-        step: {
-            id: guid(),
-        }
-    };
 
     var Runner = function() {
         var step = sf.create(mod);
