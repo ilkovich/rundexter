@@ -286,7 +286,7 @@ function run() {
         step.run(fixture);
 
         step.deferred.promise.then(function(out) {
-            console.log('success', out);
+            console.log(JSON.stringify(out,null,4));
         }, function(err) {
             console.error('fail', err);
         });
