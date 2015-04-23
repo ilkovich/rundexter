@@ -10,6 +10,7 @@ var path = require('path')
   , prompt = require('prompt')
   , home = process.env.HOME
   , q    = require('q')
+  , utils = require('../lib/utils')
   , title
 ;
 
@@ -47,14 +48,14 @@ switch(process.argv[2]) {
 
 function key() {
     q.all([
-        q.nfcall(getJsonFile, getConfigFilename()), 
+        q.nfcall(utils.getJsonFile, getConfigFilename()), 
     ]).then(function(results) {
         var config = results[0]
           , package= results[1]
         ;
         assertLoggedIn(config);
 
-        streamToString(function(key) {
+        utils.streamToString(function(key) {
             var baseUrl = config.baseUrl || 'https://rundexter.com/api/'
               , keyUrl = baseUrl + 'docker/key'
             ;
@@ -84,7 +85,7 @@ function key() {
 function repository() {
     var repo = process.argv[3];
 
-    getJsonFile(getPackageFilename(), function(err, package) {
+    utils.getJsonFile(getPackageFilename(), function(err, package) {
         if(!repo) {
             prompt.get({ properties: { repository: { message: 'Git Repo Url:' }}}, function(err, result) {
                 if(err) return console.error(err);
@@ -120,8 +121,8 @@ function repository() {
  */
 function push() {
     q.all([
-        q.nfcall(getJsonFile, getConfigFilename()), 
-        q.nfcall(getJsonFile, getPackageFilename()),
+        q.nfcall(utils.getJsonFile, getConfigFilename()), 
+        q.nfcall(utils.getJsonFile, getPackageFilename()),
     ]).then(function(results) {
         var config = results[0]
           , package= results[1]
@@ -191,7 +192,7 @@ function login() {
         if(!(credentials.password = result.password))
             return helpLogin();
 
-        getJsonFile(getConfigFilename(), function(err, config) {
+        utils.getJsonFile(getConfigFilename(), function(err, config) {
             baseUrl  = baseUrl || config.baseUrl || 'https://rundexter.com/api/';
             loginUrl = baseUrl + 'auth/login';
 
@@ -212,14 +213,6 @@ function login() {
     });
 }
 
-function slugify(text) {
-  return text.toString().toLowerCase()
-    .replace(/\s+/g, '-')           // Replace spaces with -
-    .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
-    .replace(/\-\-+/g, '-')         // Replace multiple - with single -
-    .replace(/^-+/, '')             // Trim - from start of text
-    .replace(/-+$/, '');            // Trim - from end of text
-}
 
 
 /**
@@ -230,7 +223,7 @@ function slugify(text) {
  * @return void
  */
 function create(title) {
-    var name   = slugify(title)
+    var name   = utils.slugify(title)
       , mkdirp = require('mkdirp')
       , ncp    = require('ncp').ncp
       , dest  
@@ -247,8 +240,8 @@ function create(title) {
 
             q.all([
                 //needs to be read as a string so that we can preserve comments
-                q.nfcall(getStringFile, getMetaFilename()),
-                q.nfcall(getJsonFile, getPackageFilename())
+                q.nfcall(utils.getStringFile, getMetaFilename()),
+                q.nfcall(utils.getJsonFile, getPackageFilename())
             ]).then(function(results) {
                 var meta = results[0]
                 , package = results[1]
@@ -310,46 +303,8 @@ function helpLogin() {
     console.log('dexter login <email>');
 }
 
-function slugify(text) {
-  return text.toString().toLowerCase()
-    .replace(/\s+/g, '-')           // Replace spaces with -
-    .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
-    .replace(/\-\-+/g, '-')         // Replace multiple - with single -
-    .replace(/^-+/, '')             // Trim - from start of text
-    .replace(/-+$/, '');            // Trim - from end of text
-}
-
-function getUserHome() {
-    return process.env.HOME || process.env.HOMEPATH || process.env.USERPROFILE;
-}
-
-function getStringFile(file, callback) {
-    var config;
-
-    fs.readFile(file, 'utf8', function(err, configData) {
-        callback(null, configData);
-    });
-}
-
-function getJsonFile(file, callback) {
-    var config;
-
-    fs.readFile(file, 'utf8', function(err, configData) {
-        if(err) config = {};
-        else {
-            try {
-                config = JSON.parse(configData);
-            } catch(e) {
-                config = {};
-            }
-        }
-
-        callback(null, config);
-    });
-}
-
 function getConfigFilename() {
-    return getUserHome() + '/.dexter';
+    return utils.getUserHome() + '/.dexter';
 }
 
 function getMetaFilename() {
@@ -392,13 +347,3 @@ function generateReporter(printData) {
     };
 }
 
-function streamToString(cb) {
-    var content = '';
-    process.stdin.resume();
-    process.stdin.setEncoding('utf-8');
-    process.stdin.on('data', function(buf) { content += buf.toString(); });
-    process.stdin.on('end', function() {
-        // your code here
-        cb(content);
-    });
-}
