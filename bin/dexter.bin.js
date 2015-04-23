@@ -11,6 +11,8 @@ var path = require('path')
   , home = process.env.HOME
   , q    = require('q')
   , utils = require('../lib/utils')
+  , config = require('../lib/config')
+  , package = require('../lib/package')
   , title
 ;
 
@@ -48,7 +50,7 @@ switch(process.argv[2]) {
 
 function key() {
     q.all([
-        q.nfcall(utils.getJsonFile, getConfigFilename()), 
+        q.nfcall(utils.getJsonFile, config.getConfigFilename()), 
     ]).then(function(results) {
         var config = results[0]
           , package= results[1]
@@ -85,7 +87,7 @@ function key() {
 function repository() {
     var repo = process.argv[3];
 
-    utils.getJsonFile(getPackageFilename(), function(err, package) {
+    utils.getJsonFile(package.getPackageFilename(), function(err, package) {
         if(!repo) {
             prompt.get({ properties: { repository: { message: 'Git Repo Url:' }}}, function(err, result) {
                 if(err) return console.error(err);
@@ -106,7 +108,7 @@ function repository() {
                 , url : repo
             };
 
-            fs.writeFile(getPackageFilename(), JSON.stringify(package, null, 4), function(err) {
+            fs.writeFile(package.getPackageFilename(), JSON.stringify(package, null, 4), function(err) {
                 if(err) console.error('ERROR', err);
             });
         }
@@ -121,15 +123,15 @@ function repository() {
  */
 function push() {
     q.all([
-        q.nfcall(utils.getJsonFile, getConfigFilename()), 
-        q.nfcall(utils.getJsonFile, getPackageFilename()),
+        q.nfcall(utils.getJsonFile, config.getConfigFilename()), 
+        q.nfcall(utils.getJsonFile, package.getPackageFilename()),
     ]).then(function(results) {
         var config = results[0]
           , package= results[1]
         ;
 
         assertLoggedIn(config);
-        assertPublishable(package);
+        package.assertPublishable(package);
 
         var baseUrl = config.baseUrl || 'https://rundexter.com/api/'
           , pushUrl = baseUrl + 'Module/push'
@@ -192,7 +194,7 @@ function login() {
         if(!(credentials.password = result.password))
             return helpLogin();
 
-        utils.getJsonFile(getConfigFilename(), function(err, config) {
+        utils.getJsonFile(config.getConfigFilename(), function(err, config) {
             baseUrl  = baseUrl || config.baseUrl || 'https://rundexter.com/api/';
             loginUrl = baseUrl + 'auth/login';
 
@@ -202,7 +204,7 @@ function login() {
                 if(result && result.success) {
                     config.token   = result.data.token;
                     config.baseUrl = baseUrl;
-                    writeConfig(config, generateReporter());
+                    config.writeConfig(config, generateReporter());
                 } else if(result && result.error) {
                     console.error(result.error);
                 } else {
@@ -240,8 +242,8 @@ function create(title) {
 
             q.all([
                 //needs to be read as a string so that we can preserve comments
-                q.nfcall(utils.getStringFile, getMetaFilename()),
-                q.nfcall(utils.getJsonFile, getPackageFilename())
+                q.nfcall(utils.getStringFile, package.getMetaFilename()),
+                q.nfcall(utils.getJsonFile, package.getPackageFilename())
             ]).then(function(results) {
                 var meta = results[0]
                 , package = results[1]
@@ -251,8 +253,8 @@ function create(title) {
                 meta = meta.replace("%MYTITLE%", title);
                 package.name = name;
                 q.all([
-                    q.nfcall(fs.writeFile, getMetaFilename(), meta),
-                    q.nfcall(fs.writeFile, getPackageFilename(), JSON.stringify(package, null, 4)),
+                    q.nfcall(fs.writeFile, package.getMetaFilename(), meta),
+                    q.nfcall(fs.writeFile, package.getPackageFilename(), JSON.stringify(package, null, 4)),
                 ]).then(function(results) {
                     console.log('DONE');
                 }, console.error);
@@ -303,34 +305,7 @@ function helpLogin() {
     console.log('dexter login <email>');
 }
 
-function getConfigFilename() {
-    return utils.getUserHome() + '/.dexter';
-}
 
-function getMetaFilename() {
-    return './meta.json';
-}
-
-function getPackageFilename() {
-    return './package.json';
-}
-
-function writeConfig(config, callback) {
-    fs.writeFile(getConfigFilename(), JSON.stringify(config, null, 4), function(err) {
-        if(err) callback(err);
-
-        callback(null, config);
-    });
-}
-
-function assertPublishable(package) {
-    if(!package.repository)
-        throw "package.json > repository attribute required";
-    else if(package.repository.type != 'git')
-        throw "package.json > repository.type must be git";
-    else if(!package.repository.url)
-        throw "package.json > repository.url required";
-}
 
 function assertLoggedIn(config) {
     if(!config.token) throw "You need to call dexter login <email> first";
