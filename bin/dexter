@@ -72,7 +72,7 @@ function login() {
                 if(result && result.success) {
                     config.token   = result.data.token;
                     config.baseUrl = baseUrl;
-                    config.writeConfig(config, generateReporter());
+                    config.writeConfig(config);
                 } else if(result && result.error) {
                     console.error(result.error);
                 } else {
@@ -178,15 +178,3 @@ function helpLogin() {
 function assertLoggedIn(config) {
     if(!config.token) throw "You need to call dexter login <email> first";
 }
-
-function generateReporter(printData) {
-    return function(err, data) {
-        if(err) return console.error('ERROR', err);
-
-        if(printData) 
-            return console.log('SUCCESS', data);
-        else
-            return console.log('SUCCESS');
-    };
-}
-
