@@ -12,7 +12,7 @@ var path = require('path')
   , q    = require('q')
   , utils = require('../lib/utils')
   , config = require('../lib/config')
-  , package = require('../lib/package')
+  , packagetools = require('../lib/package')
   , title
 ;
 
@@ -87,7 +87,7 @@ function key() {
 function repository() {
     var repo = process.argv[3];
 
-    utils.getJsonFile(package.getPackageFilename(), function(err, package) {
+    utils.getJsonFile(packagetools.getPackageFilename(), function(err, package) {
         if(!repo) {
             prompt.get({ properties: { repository: { message: 'Git Repo Url:' }}}, function(err, result) {
                 if(err) return console.error(err);
@@ -108,7 +108,7 @@ function repository() {
                 , url : repo
             };
 
-            fs.writeFile(package.getPackageFilename(), JSON.stringify(package, null, 4), function(err) {
+            fs.writeFile(packagetools.getPackageFilename(), JSON.stringify(package, null, 4), function(err) {
                 if(err) console.error('ERROR', err);
             });
         }
@@ -124,14 +124,14 @@ function repository() {
 function push() {
     q.all([
         q.nfcall(utils.getJsonFile, config.getConfigFilename()), 
-        q.nfcall(utils.getJsonFile, package.getPackageFilename()),
+        q.nfcall(utils.getJsonFile, packagetools.getPackageFilename()),
     ]).then(function(results) {
         var config = results[0]
           , package= results[1]
         ;
 
         assertLoggedIn(config);
-        package.assertPublishable(package);
+        packagetools.assertPublishable(package);
 
         var baseUrl = config.baseUrl || 'https://rundexter.com/api/'
           , pushUrl = baseUrl + 'Module/push'
@@ -242,8 +242,8 @@ function create(title) {
 
             q.all([
                 //needs to be read as a string so that we can preserve comments
-                q.nfcall(utils.getStringFile, package.getMetaFilename()),
-                q.nfcall(utils.getJsonFile, package.getPackageFilename())
+                q.nfcall(utils.getStringFile, packagetools.getMetaFilename()),
+                q.nfcall(utils.getJsonFile, packagetools.getPackageFilename())
             ]).then(function(results) {
                 var meta = results[0]
                 , package = results[1]
@@ -253,8 +253,8 @@ function create(title) {
                 meta = meta.replace("%MYTITLE%", title);
                 package.name = name;
                 q.all([
-                    q.nfcall(fs.writeFile, package.getMetaFilename(), meta),
-                    q.nfcall(fs.writeFile, package.getPackageFilename(), JSON.stringify(package, null, 4)),
+                    q.nfcall(fs.writeFile, packagetools.getMetaFilename(), meta),
+                    q.nfcall(fs.writeFile, packagetools.getPackageFilename(), JSON.stringify(package, null, 4)),
                 ]).then(function(results) {
                     console.log('DONE');
                 }, console.error);
