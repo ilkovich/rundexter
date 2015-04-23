@@ -28,147 +28,15 @@ switch(process.argv[2]) {
         else
             create(title);
         break;
-    case 'key':
-        key();
-        break;
     case 'run': 
         run();
         break;
     case 'login':
         login();
         break;
-    case 'push':
-        push();
-        break;
-    case 'repository':
-        repository();
-        break;
     default: 
         help();
         return;
-}
-
-function key() {
-    q.all([
-        q.nfcall(utils.getJsonFile, config.getConfigFilename()), 
-    ]).then(function(results) {
-        var config = results[0]
-          , package= results[1]
-        ;
-        assertLoggedIn(config);
-
-        utils.streamToString(function(key) {
-            var baseUrl = config.baseUrl || 'https://rundexter.com/api/'
-              , keyUrl = baseUrl + 'docker/key'
-            ;
-
-            rest.post(keyUrl,  {
-                headers: {
-                    'X-Authorization': config.token
-                }
-                , data: key
-            }).on('complete', function(result, response) {
-                if(result && result.success) {
-                    console.log('SUCCESS');
-                    console.log(result.data);
-                } else if(result && result.error) {
-                    console.error('ERROR', result.error);
-                } else {
-                    console.error('ERROR', response.statusCode);
-                    if(response.statusCode == 404) {
-                        console.log('requested url: ', keyUrl);
-                    }
-                }
-            });
-        });
-    }, console.error);
-}
-
-function repository() {
-    var repo = process.argv[3];
-
-    utils.getJsonFile(packagetools.getPackageFilename(), function(err, package) {
-        if(!repo) {
-            prompt.get({ properties: { repository: { message: 'Git Repo Url:' }}}, function(err, result) {
-                if(err) return console.error(err);
-
-                repo = result.repository;
-                next();
-            });
-        } else {
-            next();
-        }
-
-        function next() {
-            if(!repo) 
-                return console.error("ERROR", "Repository url required");
-
-            package.repository = {
-                type  : 'git'
-                , url : repo
-            };
-
-            fs.writeFile(packagetools.getPackageFilename(), JSON.stringify(package, null, 4), function(err) {
-                if(err) console.error('ERROR', err);
-            });
-        }
-    });
-}
-
-/**
- * Register a git module to dexter
- * 
- * @access public
- * @return void
- */
-function push() {
-    q.all([
-        q.nfcall(utils.getJsonFile, config.getConfigFilename()), 
-        q.nfcall(utils.getJsonFile, packagetools.getPackageFilename()),
-    ]).then(function(results) {
-        var config = results[0]
-          , package= results[1]
-        ;
-
-        assertLoggedIn(config);
-        packagetools.assertPublishable(package);
-
-        var baseUrl = config.baseUrl || 'https://rundexter.com/api/'
-          , pushUrl = baseUrl + 'Module/push'
-          , url = package.repository.url
-        ;
-
-        var interval = setInterval(function() {
-            process.stdout.write('.');
-        }, 1000);
-
-        rest.post(pushUrl,  {
-            headers: {
-                'X-Authorization': config.token
-            }
-            , data: {
-                git_url: url 
-                , name : package.name
-            }
-        }).on('complete', function(result, response) {
-            clearInterval(interval);
-
-            if(result && result.success) {
-                  console.log('SUCCESS');
-                  console.log(result.data);
-            } else if(result && result.error) {
-                console.error('ERROR', result.error);
-            } else {
-                console.error('ERROR', response.statusCode);
-                if(response.statusCode == 404) {
-                    console.log('requested url: ', pushUrl);
-                }
-            }
-        });
-
-    }, console.error).fail(function(err) {
-        console.log('ERROR', err);
-    });
 }
 
 /**
