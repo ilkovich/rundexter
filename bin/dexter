@@ -10,6 +10,7 @@ var rest = require('restler')
   , utils = require('../lib/utils')
   , configtools = require('../lib/config')
   , packagetools = require('../lib/package')
+  , keytools = require('../lib/keys')
   , title, email, keyname
 ;
 
@@ -33,7 +34,27 @@ switch(process.argv[2]) {
             help('login');
         } else {
             configtools.setBaseUrl(process.argv[4]);
-            login(email);
+            login(email, function() {
+                var pubkey = keytools.getDefaultKey()
+                    ;
+                console.log('Welcome to Dexter!');
+                if(pubkey) {
+                    prompt.get({
+                        name: 'yesno',
+                        message: 'Add your public key for GIT access?',
+                        validator: /y[es]*|n[o]?/,
+                        warning: 'Must respond yes or no',
+                        default: 'yes'
+                    }, function(err, result) {
+                        if(result.yesno.indexOf('y') === 0) {
+                            addKey();
+                        } else {
+                            console.log('If you change your mind, you can always add it later');
+                            help('add_key', false);
+                        }
+                    });
+                }
+            });
         }
         break;
     case 'add_key':
@@ -71,7 +92,7 @@ switch(process.argv[2]) {
  * @access public
  * @return void
  */
-function login(email) {
+function login(email, callback) {
     var credentials = {
             email: email
         }
@@ -103,7 +124,7 @@ function login(email) {
                     config.token   = result.data.token;
                     config.baseUrl = baseUrl;
                     configtools.writeConfig(config);
-                    //Continue on to addKey
+                    if(callback) callback();
                 } else if(result && result.error) {
                     console.error(result.error);
                 } else if(response && response.statusCode) {
@@ -201,9 +222,12 @@ function run() {
  * HELPERS
  */
 
-function help(command) {
-    console.log('dexter <create|run|push|repository|key>');
-    console.log('---------------------------------------');
+function help(command, showGeneral) {
+    if(showGeneral !== false) showGeneral = true;
+    if(showGeneral) {
+        console.log('dexter <create|run|push|repository|add_key>');
+        console.log('---------------------------------------');
+    }
     var helptext = {
         'login': 'dexter login <email> Log into Dexter and get an API key'
         , 'add_key': 'dexter add_key <keyname>(optional) Add an SSH key to the system'
