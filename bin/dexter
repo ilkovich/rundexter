@@ -113,6 +113,9 @@ function login(email, callback) {
             var baseUrl = configtools.getBaseUrl(config)
                 , loginUrl = url.resolve(baseUrl, 'auth/login')
                 ;
+            if(process.env.DEXTER_DEV) {
+                console.log('Sending key to', loginUrl);
+            }
             rest.post(loginUrl,  {
                 data: credentials
             }).on('complete', function(result, response) {
@@ -164,7 +167,7 @@ function addKey(keypath) {
             console.log('Your key is now available on dexter!');
             if(!isDefault) {
                 configtools.getConfig(function(err, config) {
-                    console.log('Make sure your .ssh/config is set to use this key for', config.getBaseUrl(config));
+                    console.log('Make sure your .ssh/config is set to use this key for', configtools.getBaseUrl(config));
                 });
             }
         }
