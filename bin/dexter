@@ -1,17 +1,13 @@
 #!/usr/bin/env node
-
 process.on('uncaughtException', function(err) {
   console.log('ERROR', err);
 });
-
-var path = require('path')
-  , rest = require('restler')
+var rest = require('restler')
   , fs   = require('fs')
   , prompt = require('prompt')
-  , home = process.env.HOME
   , q    = require('q')
   , utils = require('../lib/utils')
-  , config = require('../lib/config')
+  , configtools = require('../lib/config')
   , packagetools = require('../lib/package')
   , title
 ;
@@ -62,7 +58,7 @@ function login() {
         if(!(credentials.password = result.password))
             return helpLogin();
 
-        utils.getJsonFile(config.getConfigFilename(), function(err, config) {
+        utils.getJsonFile(configtools.getConfigFilename(), function(err, config) {
             baseUrl  = baseUrl || config.baseUrl || 'https://rundexter.com/api/';
             loginUrl = baseUrl + 'auth/login';
 
@@ -72,7 +68,7 @@ function login() {
                 if(result && result.success) {
                     config.token   = result.data.token;
                     config.baseUrl = baseUrl;
-                    config.writeConfig(config);
+                    configtools.writeConfig(config);
                 } else if(result && result.error) {
                     console.error(result.error);
                 } else {
