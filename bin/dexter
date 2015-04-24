@@ -79,6 +79,14 @@ switch(process.argv[2]) {
             addKey();
         }
         break;
+    case 'remove_key':
+        if( !(query = process.argv[3]) ) {
+            help('remove_key');
+        } else {
+            configtools.setBaseUrl(process.argv[4]);
+            removeKey(query);
+        }
+        break;
     default: 
         help();
         return;
@@ -173,6 +181,15 @@ function addKey(keypath) {
         }
     });
 
+}
+
+function removeKey(query) {
+    keytools.removeKey(query, function(err, data) {
+        if(err) console.log(err);
+        else {
+            console.log('Matching keys removed:', data.keys_removed);
+        }
+    });
 }
 
 /**
