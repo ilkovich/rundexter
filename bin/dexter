@@ -1,8 +1,11 @@
 #!/usr/bin/env node
-process.on('uncaughtException', function(err) {
-  console.log('ERROR', err);
-});
+if(!process.env.DEXTER_DEV) {
+    process.on('uncaughtException', function(err) {
+      console.log('ERROR', err);
+    });
+}
 var rest = require('restler')
+  , path = require('path')
   , url = require('url')
   , fs   = require('fs')
   , prompt = require('prompt')
@@ -58,11 +61,11 @@ switch(process.argv[2]) {
         }
         break;
     case 'add_key':
-        if(count(process.argv) > 4) {
+        if(process.argv.length > 4) {
             //We might have [keyfile] [baseurl]
             configtools.setBaseUrl(process.argv[4]);
             addKey(process.argv[3]);
-        } else if(count(process.argv) == 4) {
+        } else if(process.argv.length == 4) {
             if(process.argv[3].match(/^https?:\/\//i)) {
                 //...or just [baseurl]
                 configtools.setBaseUrl(process.argv[3]);
@@ -75,12 +78,7 @@ switch(process.argv[2]) {
             //...or nothing at all.
             addKey();
         }
-        if( !(keypath = process.argv[3]) ) {
-            helpAddKey();
-        } else {
-            configtools.setBaseUrl(process.argv[4]);
-            addKey(keypath);
-        }
+        break;
     default: 
         help();
         return;
@@ -115,23 +113,15 @@ function login(email, callback) {
             var baseUrl = configtools.getBaseUrl(config)
                 , loginUrl = url.resolve(baseUrl, 'auth/login')
                 ;
-                console.log(loginUrl);
-
             rest.post(loginUrl,  {
                 data: credentials
             }).on('complete', function(result, response) {
-                if(result && result.success) {
+                utils.restResponse(result, response, function() {
                     config.token   = result.data.token;
                     config.baseUrl = baseUrl;
                     configtools.writeConfig(config);
                     if(callback) callback();
-                } else if(result && result.error) {
-                    console.error(result.error);
-                } else if(response && response.statusCode) {
-                    console.error(response.statusCode, result);
-                } else {
-                    console.log(result.code);
-                }
+                });
             });
         });
     });
@@ -143,7 +133,43 @@ function login(email, callback) {
  * @access public
  * @return void
  */
-function addKey() {
+function addKey(keypath) {
+    var key
+        , isDefault = false
+        ;
+    if(keypath) {
+        keypath = path.resolve(keypath);
+        try {
+            key = keytools.getKey(keypath);
+        } catch(e) {
+            return console.error('Could not read key at ', keypath);
+        }   
+    } else {
+        isDefault = true;
+        key = keytools.getDefaultKey();
+        if(!key) {
+            console.log('You don\'t seem to have a default SSH public key');
+            console.log('You can either create a default key:');
+            console.log('------------------------------------');
+            console.log('ssh-keygen -t rsa (hit enter at all prompts)');
+            console.log('------------------------------------');
+            console.log('Or, if you\'t prefer to use another key, pass it into add_key:');
+            console.log('------------------------------------');
+            return help('add_key', false);
+        }
+    }
+    keytools.sendKey(key, function(err, data) {
+        if(err) console.log(err);
+        else {
+            console.log('Your key is now available on dexter!');
+            if(!isDefault) {
+                configtools.getConfig(function(err, config) {
+                    console.log('Make sure your .ssh/config is set to use this key for', config.getBaseUrl(config));
+                });
+            }
+        }
+    });
+
 }
 
 /**
