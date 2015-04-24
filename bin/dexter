@@ -3,13 +3,14 @@ process.on('uncaughtException', function(err) {
   console.log('ERROR', err);
 });
 var rest = require('restler')
+  , url = require('url')
   , fs   = require('fs')
   , prompt = require('prompt')
   , q    = require('q')
   , utils = require('../lib/utils')
   , configtools = require('../lib/config')
   , packagetools = require('../lib/package')
-  , title
+  , title, email, keyname
 ;
 
 /**
@@ -28,7 +29,12 @@ switch(process.argv[2]) {
         run();
         break;
     case 'login':
-        login();
+        if( !(email = process.argv[3]) ) {
+            helpLogin();
+        } else {
+            configtools.setBaseUrl(process.argv[4]);
+            login(email);
+        }
         break;
     default: 
         help();
@@ -41,26 +47,30 @@ switch(process.argv[2]) {
  * @access public
  * @return void
  */
-function login() {
-    var user    = process.argv[3]
-      , baseUrl = process.argv[4]
-      , credentials = {
-           email: user
-      }
-      , loginUrl
-    ;
+function login(email) {
+    var credentials = {
+            email: email
+        }
+        ;
 
-    if(!user) 
-        return helpLogin();
+    prompt.get({
+        properties: {
+            password: {
+                message: 'Password:',
+                hidden: true
+            }
+        }
+    }, function(err, result) {
 
-    prompt.get({ properties: { password: { message: 'Password:', hidden: true }}}, function(err, result) {
-
+        //Make sure the user entered something
         if(!(credentials.password = result.password))
             return helpLogin();
 
-        utils.getJsonFile(configtools.getConfigFilename(), function(err, config) {
-            baseUrl  = baseUrl || config.baseUrl || 'https://rundexter.com/api/';
-            loginUrl = baseUrl + 'auth/login';
+        configtools.getConfig(function(err, config) {
+            var baseUrl = configtools.getBaseUrl(config)
+                , loginUrl = url.resolve(baseUrl, 'auth/login')
+                ;
+                console.log(loginUrl);
 
             rest.post(loginUrl,  {
                 data: credentials
@@ -69,17 +79,27 @@ function login() {
                     config.token   = result.data.token;
                     config.baseUrl = baseUrl;
                     configtools.writeConfig(config);
+                    //Continue on to addKey
                 } else if(result && result.error) {
                     console.error(result.error);
-                } else {
+                } else if(response && response.statusCode) {
                     console.error(response.statusCode, result);
+                } else {
+                    console.log(result.code);
                 }
             });
         });
     });
 }
 
-
+/**
+ * Add an SSH key to Dexter
+ * 
+ * @access public
+ * @return void
+ */
+function addKey() {
+}
 
 /**
  * Create a new module
@@ -167,10 +187,4 @@ function helpCreate() {
 
 function helpLogin() {
     console.log('dexter login <email>');
-}
-
-
-
-function assertLoggedIn(config) {
-    if(!config.token) throw "You need to call dexter login <email> first";
 }
