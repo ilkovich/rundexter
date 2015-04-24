@@ -87,6 +87,9 @@ switch(process.argv[2]) {
             removeKey(query);
         }
         break;
+    case 'list_keys':
+        listKeys();
+        break;
     default: 
         help();
         return;
@@ -169,26 +172,28 @@ function addKey(keypath) {
             return help('add_key', false);
         }
     }
-    keytools.sendKey(key, function(err, data) {
-        if(err) console.log(err);
-        else {
-            console.log('Your key is now available on dexter!');
-            if(!isDefault) {
-                configtools.getConfig(function(err, config) {
-                    console.log('Make sure your .ssh/config is set to use this key for', configtools.getBaseUrl(config));
-                });
-            }
+    keytools.sendKey(key, function(data) {
+        console.log('Your key is now available on dexter!');
+        if(!isDefault) {
+            configtools.getConfig(function(err, config) {
+                console.log('Make sure your .ssh/config is set to use this key for', configtools.getBaseUrl(config));
+            });
         }
     });
 
 }
 
 function removeKey(query) {
-    keytools.removeKey(query, function(err, data) {
-        if(err) console.log(err);
-        else {
-            console.log('Matching keys removed:', data.keys_removed);
-        }
+    keytools.removeKey(query, function(data) {
+        console.log('Matching keys removed:', data.keys_removed);
+    });
+}
+
+function listKeys() {
+    keytools.getAll(function(data) {
+        data.keys.forEach(function(key) {
+            console.log(key);
+        });
     });
 }
 
@@ -277,6 +282,8 @@ function help(command, showGeneral) {
     var helptext = {
         'login': 'dexter login <email> Log into Dexter and get an API key'
         , 'add_key': 'dexter add_key <keyname>(optional) Add an SSH key to the system'
+        , 'remove_key': 'dexter remove_key <name|partial value> Delete all SSH public keys with the given name or a single key matching part of the value'
+        , 'list_keys': 'dexter list_keys See all the SSH public keys you have registered'
         , 'create': 'dexter create <moduleName> Create a skeleton for a new module'
         };
     if(helptext[command]) console.log(helptext[command]);
