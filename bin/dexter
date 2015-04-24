@@ -21,7 +21,7 @@ prompt.message = prompt.delimiter = '';
 switch(process.argv[2]) {
     case 'create':
         if( !(title = process.argv[3]) )
-            helpCreate();        
+            help('create');
         else
             create(title);
         break;
@@ -30,12 +30,36 @@ switch(process.argv[2]) {
         break;
     case 'login':
         if( !(email = process.argv[3]) ) {
-            helpLogin();
+            help('login');
         } else {
             configtools.setBaseUrl(process.argv[4]);
             login(email);
         }
         break;
+    case 'add_key':
+        if(count(process.argv) > 4) {
+            //We might have [keyfile] [baseurl]
+            configtools.setBaseUrl(process.argv[4]);
+            addKey(process.argv[3]);
+        } else if(count(process.argv) == 4) {
+            if(process.argv[3].match(/^https?:\/\//i)) {
+                //...or just [baseurl]
+                configtools.setBaseUrl(process.argv[3]);
+                addKey();
+            } else {
+                //...or just [keyfile]
+                addKey(process.argv[3]);
+            }
+        } else {
+            //...or nothing at all.
+            addKey();
+        }
+        if( !(keypath = process.argv[3]) ) {
+            helpAddKey();
+        } else {
+            configtools.setBaseUrl(process.argv[4]);
+            addKey(keypath);
+        }
     default: 
         help();
         return;
@@ -177,14 +201,18 @@ function run() {
  * HELPERS
  */
 
-function help() {
+function help(command) {
     console.log('dexter <create|run|push|repository|key>');
-}
-
-function helpCreate() {
-    console.log('dexter create <moduleName>');
-}
-
-function helpLogin() {
-    console.log('dexter login <email>');
+    console.log('---------------------------------------');
+    var helptext = {
+        'login': 'dexter login <email> Log into Dexter and get an API key'
+        , 'add_key': 'dexter add_key <keyname>(optional) Add an SSH key to the system'
+        , 'create': 'dexter create <moduleName> Create a skeleton for a new module'
+        };
+    if(helptext[command]) console.log(helptext[command]);
+    else {
+        Object.keys(helptext).forEach(function(key) {
+            console.log(helptext[key]);
+        });
+    }
 }
