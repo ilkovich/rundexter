@@ -37,7 +37,6 @@ switch(process.argv[2]) {
         if( !(email = process.argv[3]) ) {
             help('login');
         } else {
-            configtools.setBaseUrl(process.argv[4]);
             login(email, function() {
                 var pubkey = keytools.getDefaultKey()
                     ;
@@ -62,21 +61,9 @@ switch(process.argv[2]) {
         }
         break;
     case 'add_key':
-        if(process.argv.length > 4) {
-            //We might have [keyfile] [baseurl]
-            configtools.setBaseUrl(process.argv[4]);
+        if(process.argv.length == 3) {
             addKey(process.argv[3]);
-        } else if(process.argv.length == 4) {
-            if(process.argv[3].match(/^https?:\/\//i)) {
-                //...or just [baseurl]
-                configtools.setBaseUrl(process.argv[3]);
-                addKey();
-            } else {
-                //...or just [keyfile]
-                addKey(process.argv[3]);
-            }
         } else {
-            //...or nothing at all.
             addKey();
         }
         break;
@@ -84,7 +71,6 @@ switch(process.argv[2]) {
         if( !(query = process.argv[3]) ) {
             help('remove_key');
         } else {
-            configtools.setBaseUrl(process.argv[4]);
             removeKey(query);
         }
         break;
@@ -124,22 +110,18 @@ function login(email, callback) {
         if(!(credentials.password = result.password))
             return helpLogin();
 
-        configtools.getConfig(function(err, config) {
-            var baseUrl = configtools.getBaseUrl(config)
-                , loginUrl = url.resolve(baseUrl, 'auth/login')
-                ;
-            if(process.env.DEXTER_DEV) {
-                console.log('Sending key to', loginUrl);
-            }
-            rest.post(loginUrl,  {
-                data: credentials
-            }).on('complete', function(result, response) {
-                utils.restResponse(result, response, function() {
-                    config.token   = result.data.token;
-                    config.baseUrl = baseUrl;
-                    configtools.writeConfig(config);
-                    if(callback) callback();
-                });
+        var baseUrl = configtools.getBaseUrl()
+            , loginUrl = url.resolve(baseUrl, 'auth/login')
+            ;
+        if(process.env.DEXTER_DEV) {
+            console.log('Sending key to', loginUrl);
+        }
+        rest.post(loginUrl,  {
+            data: credentials
+        }).on('complete', function(result, response) {
+            utils.restResponse(result, response, function() {
+                netrctools.write(credentials.email, result.data.token);
+                if(callback) callback();
             });
         });
     });
@@ -179,9 +161,7 @@ function addKey(keypath) {
     keytools.sendKey(key, function(data) {
         console.log('Your key is now available on dexter!');
         if(!isDefault) {
-            configtools.getConfig(function(err, config) {
-                console.log('Make sure your .ssh/config is set to use this key for', configtools.getBaseUrl(config));
-            });
+            console.log('Make sure your .ssh/config is set to use this key for', configtools.getBaseUrl());
         }
     });
 
