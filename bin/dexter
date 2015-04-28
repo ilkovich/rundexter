@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-if(!configtools.isDev) {
+//Note: usually we compare this against configtools, but we can't since they're not loaded yet....
+if(!process.env.DEXTER_DEV) {
     process.on('uncaughtException', function(err) {
       console.log('ERROR', err);
     });
@@ -41,7 +42,6 @@ switch(process.argv[2]) {
             login(email, function() {
                 var pubkey = keytools.getDefaultKey()
                     ;
-                console.log('Welcome to Dexter!');
                 if(pubkey) {
                     prompt.get({
                         name: 'yesno',
@@ -116,9 +116,9 @@ function login(email, callback) {
         if(configtools.isDev) {
             console.log('Sending key to', loginUrl);
         }
-        rest.post(loginUrl,  {
+        rest.post(loginUrl, remotetools.signRequest({
             data: credentials
-        }).on('complete', function(result, response) {
+        })).on('complete', function(result, response) {
             remotetools.wrapResponse(result, response, function() {
                 netrctools.write(credentials.email, result.data.token);
                 if(callback) callback();
