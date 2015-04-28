@@ -119,7 +119,7 @@ function login(email, callback) {
         rest.post(loginUrl,  {
             data: credentials
         }).on('complete', function(result, response) {
-            utils.restResponse(result, response, function() {
+            remotetools.wrapResponse(result, response, function() {
                 netrctools.write(credentials.email, result.data.token);
                 if(callback) callback();
             });
