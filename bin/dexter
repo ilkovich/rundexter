@@ -15,6 +15,7 @@ var rest = require('restler')
   , packagetools = require('../lib/package')
   , keytools = require('../lib/keys')
   , netrctools = require('../lib/netrc')
+  , remotetools = require('../lib/remote')
   , title, email, keyname
 ;
 
@@ -86,7 +87,7 @@ switch(process.argv[2]) {
 }
 
 /**
- * Log the user in and update/create global config
+ * Log the user in and set our token
  * 
  * @access public
  * @return void
@@ -110,8 +111,7 @@ function login(email, callback) {
         if(!(credentials.password = result.password))
             return helpLogin();
 
-        var baseUrl = configtools.getBaseUrl()
-            , loginUrl = url.resolve(baseUrl, 'auth/login')
+        var loginUrl = remotetools.getUrl('auth/login')
             ;
         if(process.env.DEXTER_DEV) {
             console.log('Sending key to', loginUrl);
@@ -161,7 +161,7 @@ function addKey(keypath) {
     keytools.sendKey(key, function(data) {
         console.log('Your key is now available on dexter!');
         if(!isDefault) {
-            console.log('Make sure your .ssh/config is set to use this key for', configtools.getBaseUrl());
+            console.log('Make sure your .ssh/config is set to use this key for', configtools.machineName);
         }
     });
 
