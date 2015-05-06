@@ -1,0 +1,279 @@
+#!/usr/bin/env node
+//Note: usually we compare this against configtools, but we can't since they're not loaded yet....
+if(!process.env.DEXTER_DEV) {
+    process.on('uncaughtException', function(err) {
+      console.log('ERROR', err);
+    });
+}
+var rest = require('restler')
+  , path = require('path')
+  , url = require('url')
+  , fs   = require('fs')
+  , prompt = require('prompt')
+  , q    = require('q')
+  , utils = require('../lib/utils')
+  , configtools = require('../lib/config')
+  , packagetools = require('../lib/package')
+  , keytools = require('../lib/keys')
+  , netrctools = require('../lib/netrc')
+  , remotetools = require('../lib/remote')
+  , title, email, keyname
+;
+
+/**
+ *  Defaults
+ */
+prompt.message = prompt.delimiter = '';
+
+switch(process.argv[2]) {
+    case 'create':
+        if( !(title = process.argv[3]) )
+            help('create');
+        else
+            create(title);
+        break;
+    case 'run': 
+        run();
+        break;
+    case 'login':
+        if( !(email = process.argv[3]) ) {
+            help('login');
+        } else {
+            login(email, function() {
+                var pubkey = keytools.getDefaultKey()
+                    ;
+                if(pubkey) {
+                    prompt.get({
+                        name: 'yesno',
+                        message: 'Add your public key for GIT access?',
+                        validator: /y[es]*|n[o]?/,
+                        warning: 'Must respond yes or no',
+                        default: 'yes'
+                    }, function(err, result) {
+                        if(result.yesno.indexOf('y') === 0) {
+                            addKey();
+                        } else {
+                            console.log('If you change your mind, you can always add it later');
+                            help('add_key', false);
+                        }
+                    });
+                }
+            });
+        }
+        break;
+    case 'add_key':
+        if(process.argv.length == 3) {
+            addKey(process.argv[3]);
+        } else {
+            addKey();
+        }
+        break;
+    case 'remove_key':
+        if( !(query = process.argv[3]) ) {
+            help('remove_key');
+        } else {
+            removeKey(query);
+        }
+        break;
+    case 'list_keys':
+        listKeys();
+        break;
+    case 'test':
+        netrctools.write('xxx', 'yyy');
+        break;
+    default: 
+        help();
+        return;
+}
+
+/**
+ * Log the user in and set our token
+ * 
+ * @access public
+ * @return void
+ */
+function login(email, callback) {
+    var credentials = {
+            email: email
+        }
+        ;
+
+    prompt.get({
+        properties: {
+            password: {
+                message: 'Password:',
+                hidden: true
+            }
+        }
+    }, function(err, result) {
+
+        //Make sure the user entered something
+        if(!(credentials.password = result.password))
+            return helpLogin();
+
+        var loginUrl = remotetools.getUrl('auth/login')
+            ;
+        if(configtools.isDev) {
+            console.log('Sending key to', loginUrl);
+        }
+        rest.post(loginUrl, remotetools.signRequest({
+            data: credentials
+        })).on('complete', function(result, response) {
+            remotetools.wrapResponse(result, response, function() {
+                netrctools.write(credentials.email, result.data.token);
+                if(callback) callback();
+            });
+        });
+    });
+}
+
+/**
+ * Add an SSH key to Dexter
+ * 
+ * @access public
+ * @return void
+ */
+function addKey(keypath) {
+    var key
+        , isDefault = false
+        ;
+    if(keypath) {
+        keypath = path.resolve(keypath);
+        try {
+            key = keytools.getKey(keypath);
+        } catch(e) {
+            return console.error('Could not read key at ', keypath);
+        }   
+    } else {
+        isDefault = true;
+        key = keytools.getDefaultKey();
+        if(!key) {
+            console.log('You don\'t seem to have a default SSH public key');
+            console.log('You can either create a default key:');
+            console.log('------------------------------------');
+            console.log('ssh-keygen -t rsa (hit enter at all prompts)');
+            console.log('------------------------------------');
+            console.log('Or, if you\'t prefer to use another key, pass it into add_key:');
+            console.log('------------------------------------');
+            return help('add_key', false);
+        }
+    }
+    keytools.sendKey(key, function(data) {
+        console.log('Your key is now available on dexter!');
+        if(!isDefault) {
+            console.log('Make sure your .ssh/config is set to use this key for', configtools.machineName);
+        }
+    });
+
+}
+
+function removeKey(query) {
+    keytools.removeKey(query, function(data) {
+        console.log('Matching keys removed:', data.keys_removed);
+    });
+}
+
+function listKeys() {
+    keytools.getAll(function(data) {
+        data.keys.forEach(function(key) {
+            console.log(key);
+        });
+    });
+}
+
+/**
+ * Create a new module
+ * 
+ * @param title $title 
+ * @access public
+ * @return void
+ */
+function create(title) {
+    var name   = utils.slugify(title)
+      , mkdirp = require('mkdirp')
+      , ncp    = require('ncp').ncp
+      , dest  
+    ;
+
+    mkdirp(( dest = './'+name ), function(err) {
+        if(err) return console.error(err);
+
+
+        ncp(__dirname + '/../skel/.', dest, function(err) {
+            if(err) return console.error(err);
+
+            process.chdir(dest);
+
+            q.all([
+                //needs to be read as a string so that we can preserve comments
+                q.nfcall(utils.getStringFile, packagetools.getMetaFilename()),
+                q.nfcall(utils.getJsonFile, packagetools.getPackageFilename())
+            ]).then(function(results) {
+                var meta = results[0]
+                , package = results[1]
+                ;
+
+                //needs to be treated as a string so that we can preserve comments
+                meta = meta.replace("%MYTITLE%", title);
+                package.name = name;
+                q.all([
+                    q.nfcall(fs.writeFile, packagetools.getMetaFilename(), meta),
+                    q.nfcall(fs.writeFile, packagetools.getPackageFilename(), JSON.stringify(package, null, 4)),
+                ]).then(function(results) {
+                    console.log('DONE');
+                }, console.error);
+            }, console.error).fail(console.error);
+        });
+    });
+}
+
+/**
+ * Run a fixture against the current module. 
+ * 
+ * @access public
+ * @return void
+ */
+function run() {
+    var sf      = require('../StepFactory')
+      , mod     = require(process.cwd())
+      , fixtureName = process.argv[3] || 'default'
+      , fixture  = require(process.cwd()+'/fixtures/'+fixtureName+'.js')
+    ;
+
+    var Runner = function() {
+        var step = sf.create(mod);
+        step.run(fixture);
+
+        step.deferred.promise.then(function(out) {
+            console.log(JSON.stringify(out,null,4));
+        }, function(err) {
+            console.error('fail', err);
+        });
+    };
+    new Runner();
+}
+
+/*
+ * HELPERS
+ */
+
+function help(command, showGeneral) {
+    if(showGeneral !== false) showGeneral = true;
+    if(showGeneral) {
+        console.log('dexter <create|run|push|repository|add_key>');
+        console.log('---------------------------------------');
+    }
+    var helptext = {
+        'login': 'dexter login <email> Log into Dexter and get an API key'
+        , 'add_key': 'dexter add_key <keyname>(optional) Add an SSH key to the system'
+        , 'remove_key': 'dexter remove_key <name|partial value> Delete all SSH public keys with the given name or a single key matching part of the value'
+        , 'list_keys': 'dexter list_keys See all the SSH public keys you have registered'
+        , 'create': 'dexter create <moduleName> Create a skeleton for a new module'
+        };
+    if(helptext[command]) console.log(helptext[command]);
+    else {
+        Object.keys(helptext).forEach(function(key) {
+            console.log(helptext[key]);
+        });
+    }
+}
