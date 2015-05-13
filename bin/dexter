@@ -17,6 +17,7 @@ var rest = require('restler')
   , keytools = require('../lib/keys')
   , netrctools = require('../lib/netrc')
   , remotetools = require('../lib/remote')
+  , gittools = require('../lib/git')
   , title, email, keyname
 ;
 
@@ -34,6 +35,12 @@ switch(process.argv[2]) {
         break;
     case 'run': 
         run();
+        break;
+    case 'init':
+        if( !(dir = process.argv[3]) )
+            help('init');
+        else
+            init(dir);
         break;
     case 'login':
         if( !(email = process.argv[3]) ) {
@@ -84,6 +91,22 @@ switch(process.argv[2]) {
     default: 
         help();
         return;
+}
+
+function init(dir) {
+    console.log('Initializing Dexter remote in', dir);
+    gittools.getOrCreateRemote(
+        dir
+        , 'dexter'
+        , 'ssh://gl.lexicalbits.com:8080/dexter_module/xxx'
+        , function(remote) {
+            if(remote) {
+                console.log('Your dexter remote is ready');
+            } else {
+                console.log('Failed initializing a dexter remote');
+            }
+        }
+    );
 }
 
 /**
@@ -269,6 +292,7 @@ function help(command, showGeneral) {
         , 'remove_key': 'dexter remove_key <name|partial value> Delete all SSH public keys with the given name or a single key matching part of the value'
         , 'list_keys': 'dexter list_keys See all the SSH public keys you have registered'
         , 'create': 'dexter create <moduleName> Create a skeleton for a new module'
+        , 'init': 'dexter init <dir> Initialize a Dexter git remote in the given directory'
         };
     if(helptext[command]) console.log(helptext[command]);
     else {
