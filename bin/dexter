@@ -99,9 +99,13 @@ function init(dir) {
         var packageName;
         if(!repo) {
             console.log('No git repository in', dir, '- did you meant to dexter create?');
-        } else if( !(packageName = packagetools.getPackageName(dir)) ) {
-            console.log('It doesn\'t look like there\'s a valid package name for us to use for the repo...');
-        } else {
+            return;
+        }
+        packagetools.getPackageName(dir, function(packageName) {
+            if(!packageName) {
+                console.log('It doesn\'t look like there\'s a valid package name for us to use for the repo...');
+                return;
+            }
             gittools.getOrCreateRemote(
                 dir
                 , 'dexter'
@@ -114,7 +118,7 @@ function init(dir) {
                     }
                 }
             );
-        }
+        });
     });
 }
 
@@ -224,14 +228,12 @@ function create(title) {
     var name   = utils.slugify(title)
       , mkdirp = require('mkdirp')
       , ncp    = require('ncp').ncp
+      , src    = path.resolve(__dirname + '/../skel/.')
       , dest   = path.resolve('./' + name)
     ;
 
     gittools.getOrCreateRepo(dest, function(r) {
-        if(err) return console.error(err);
-
-
-        ncp(__dirname + '/../skel/.', dest, function(err) {
+        ncp(src, dest, function(err) {
             if(err) return console.error(err);
 
             process.chdir(dest);
