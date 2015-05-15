@@ -94,19 +94,28 @@ switch(process.argv[2]) {
 }
 
 function init(dir) {
-    console.log('Initializing Dexter remote in', dir);
-    gittools.getOrCreateRemote(
-        dir
-        , 'dexter'
-        , 'ssh://gl.lexicalbits.com:8080/dexter_module/xxx'
-        , function(remote) {
-            if(remote) {
-                console.log('Your dexter remote is ready');
-            } else {
-                console.log('Failed initializing a dexter remote');
-            }
+    console.log('Initializing Dexter remote in', path.resolve(dir));
+    gittools.getRepo(dir, function(repo) {
+        var packageName;
+        if(!repo) {
+            console.log('No git repository in', dir, '- did you meant to dexter create?');
+        } else if( !(packageName = packagetools.getPackageName(dir)) ) {
+            console.log('It doesn\'t look like there\'s a valid package name for us to use for the repo...');
+        } else {
+            gittools.getOrCreateRemote(
+                dir
+                , 'dexter'
+                , 'ssh://gl.lexicalbits.com:8080/dexter_module/xxx'
+                , function(remote) {
+                    if(remote) {
+                        console.log('Your dexter remote is ready');
+                    } else {
+                        console.log('Failed initializing a dexter remote');
+                    }
+                }
+            );
         }
-    );
+    });
 }
 
 /**
@@ -215,10 +224,10 @@ function create(title) {
     var name   = utils.slugify(title)
       , mkdirp = require('mkdirp')
       , ncp    = require('ncp').ncp
-      , dest  
+      , dest   = path.resolve('./' + name)
     ;
 
-    mkdirp(( dest = './'+name ), function(err) {
+    gittools.getOrCreateRepo(dest, function(r) {
         if(err) return console.error(err);
 
 
@@ -242,9 +251,7 @@ function create(title) {
                 q.all([
                     q.nfcall(fs.writeFile, packagetools.getMetaFilename(), meta),
                     q.nfcall(fs.writeFile, packagetools.getPackageFilename(), JSON.stringify(package, null, 4)),
-                ]).then(function(results) {
-                    console.log('DONE');
-                }, console.error);
+                ])
             }, console.error).fail(console.error);
         });
     });
