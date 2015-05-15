@@ -42,6 +42,12 @@ switch(process.argv[2]) {
         else
             init(dir);
         break;
+    case 'push':
+        if( !(dir = process.argv[3]) )
+            help('push');
+        else
+            push(dir);
+        break;
     case 'login':
         if( !(email = process.argv[3]) ) {
             help('login');
@@ -85,9 +91,6 @@ switch(process.argv[2]) {
     case 'list_keys':
         listKeys();
         break;
-    case 'test':
-        netrctools.write('xxx', 'yyy');
-        break;
     default: 
         help();
         return;
@@ -121,6 +124,13 @@ function init(dir) {
             );
         });
     });
+}
+
+function push(dir) {
+    gittools.pushToDexter(dir)
+        .then(function() {
+            console.log('Push finished');
+        });
 }
 
 /**
@@ -320,6 +330,7 @@ function help(command, showGeneral) {
         , 'list_keys': 'dexter list_keys See all the SSH public keys you have registered'
         , 'create': 'dexter create <moduleName> Create a skeleton for a new module'
         , 'init': 'dexter init <dir> Initialize a Dexter git remote in the given directory'
+        , 'push': 'dexter push <dir> Push your most recently committed code to Dexter'
         };
     if(helptext[command]) console.log(helptext[command]);
     else {
