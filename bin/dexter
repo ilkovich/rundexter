@@ -106,10 +106,11 @@ function init(dir) {
                 console.log('It doesn\'t look like there\'s a valid package name for us to use for the repo...');
                 return;
             }
+            var remoteUri = configtools.getGitUrl() + packageName;
             gittools.getOrCreateRemote(
                 dir
                 , 'dexter'
-                , 'ssh://gl.lexicalbits.com:8080/dexter_module/xxx'
+                , remoteUri
                 , function(remote) {
                     if(remote) {
                         console.log('Your dexter remote is ready');
