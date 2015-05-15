@@ -179,7 +179,8 @@ function addKey(keypath) {
         try {
             key = keytools.getKey(keypath);
         } catch(e) {
-            return console.error('Could not read key at ', keypath);
+            console.error('Could not read key at ', keypath);
+            return;
         }   
     } else {
         isDefault = true;
@@ -233,31 +234,47 @@ function create(title) {
       , dest   = path.resolve('./' + name)
     ;
 
-    gittools.getOrCreateRepo(dest, function(r) {
-        ncp(src, dest, function(err) {
-            if(err) return console.error(err);
+    gittools.getConfig()
+        .then(function(userData) {
+            if(userData.email && userData.name) {
+                console.log('Initializing project as', userData.name, '(' + userData.email + ')');
+            } else {
+                throw Error('Git is not configured - make sure you\'ve set a global name and email');
+            }
+            return gittools.getOrCreateRepo(dest);
+        })
+        .then(function(repo) {
+            ncp(src, dest, function(err) {
+                if(err) return console.error(err);
 
-            process.chdir(dest);
+                process.chdir(dest);
 
-            q.all([
-                //needs to be read as a string so that we can preserve comments
-                q.nfcall(utils.getStringFile, packagetools.getMetaFilename()),
-                q.nfcall(utils.getJsonFile, packagetools.getPackageFilename())
-            ]).then(function(results) {
-                var meta = results[0]
-                , package = results[1]
-                ;
-
-                //needs to be treated as a string so that we can preserve comments
-                meta = meta.replace("%MYTITLE%", title);
-                package.name = name;
                 q.all([
-                    q.nfcall(fs.writeFile, packagetools.getMetaFilename(), meta),
-                    q.nfcall(fs.writeFile, packagetools.getPackageFilename(), JSON.stringify(package, null, 4)),
-                ])
-            }, console.error).fail(console.error);
-        });
-    });
+                    //needs to be read as a string so that we can preserve comments
+                    q.nfcall(utils.getStringFile, packagetools.getMetaFilename()),
+                    q.nfcall(utils.getJsonFile, packagetools.getPackageFilename())
+                ]).then(function(results) {
+                    var meta = results[0]
+                    , package = results[1]
+                    ;
+
+                    //needs to be treated as a string so that we can preserve comments
+                    meta = meta.replace("%MYTITLE%", title);
+                    package.name = name;
+                    q.all([
+                        q.nfcall(fs.writeFile, packagetools.getMetaFilename(), meta),
+                        q.nfcall(fs.writeFile, packagetools.getPackageFilename(), JSON.stringify(package, null, 4)),
+                    ]).then(function() {
+                        gittools.initialCommit(dest);
+                    });
+                }, console.error).fail(console.error);
+            });
+        })
+        .catch(function(err) {
+            console.error('Failed validating config:',  err);
+            process.exit(1);
+        })
+        ;
 }
 
 /**
