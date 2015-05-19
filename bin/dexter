@@ -17,6 +17,7 @@ var rest = require('restler')
   , keytools = require('../lib/keys')
   , netrctools = require('../lib/netrc')
   , remotetools = require('../lib/remote')
+  , gittools = require('../lib/git')
   , title, email, keyname
 ;
 
@@ -34,6 +35,18 @@ switch(process.argv[2]) {
         break;
     case 'run': 
         run();
+        break;
+    case 'init':
+        if( !(dir = process.argv[3]) )
+            help('init');
+        else
+            init(dir);
+        break;
+    case 'push':
+        if( !(dir = process.argv[3]) )
+            help('push');
+        else
+            push(dir);
         break;
     case 'login':
         if( !(email = process.argv[3]) ) {
@@ -78,12 +91,46 @@ switch(process.argv[2]) {
     case 'list_keys':
         listKeys();
         break;
-    case 'test':
-        netrctools.write('xxx', 'yyy');
-        break;
     default: 
         help();
         return;
+}
+
+function init(dir) {
+    console.log('Initializing Dexter remote in', path.resolve(dir));
+    gittools.getRepo(dir, function(repo) {
+        var packageName;
+        if(!repo) {
+            console.log('No git repository in', dir, '- did you meant to dexter create?');
+            return;
+        }
+        packagetools.getPackageName(dir, function(packageName) {
+            if(!packageName) {
+                console.log('It doesn\'t look like there\'s a valid package name for us to use for the repo...');
+                return;
+            }
+            var remoteUri = configtools.getGitUrl() + packageName;
+            gittools.getOrCreateRemote(
+                dir
+                , 'dexter'
+                , remoteUri
+                , function(remote) {
+                    if(remote) {
+                        console.log('Your dexter remote is ready');
+                    } else {
+                        console.log('Failed initializing a dexter remote');
+                    }
+                }
+            );
+        });
+    });
+}
+
+function push(dir) {
+    gittools.pushToDexter(dir)
+        .then(function() {
+            console.log('Push finished');
+        });
 }
 
 /**
@@ -142,7 +189,8 @@ function addKey(keypath) {
         try {
             key = keytools.getKey(keypath);
         } catch(e) {
-            return console.error('Could not read key at ', keypath);
+            console.error('Could not read key at ', keypath);
+            return;
         }   
     } else {
         isDefault = true;
@@ -192,39 +240,51 @@ function create(title) {
     var name   = utils.slugify(title)
       , mkdirp = require('mkdirp')
       , ncp    = require('ncp').ncp
-      , dest  
+      , src    = path.resolve(__dirname + '/../skel/.')
+      , dest   = path.resolve('./' + name)
     ;
 
-    mkdirp(( dest = './'+name ), function(err) {
-        if(err) return console.error(err);
+    gittools.getConfig()
+        .then(function(userData) {
+            if(userData.email && userData.name) {
+                console.log('Initializing project as', userData.name, '(' + userData.email + ')');
+            } else {
+                throw Error('Git is not configured - make sure you\'ve set a global name and email');
+            }
+            return gittools.getOrCreateRepo(dest);
+        })
+        .then(function(repo) {
+            ncp(src, dest, function(err) {
+                if(err) return console.error(err);
 
+                process.chdir(dest);
 
-        ncp(__dirname + '/../skel/.', dest, function(err) {
-            if(err) return console.error(err);
-
-            process.chdir(dest);
-
-            q.all([
-                //needs to be read as a string so that we can preserve comments
-                q.nfcall(utils.getStringFile, packagetools.getMetaFilename()),
-                q.nfcall(utils.getJsonFile, packagetools.getPackageFilename())
-            ]).then(function(results) {
-                var meta = results[0]
-                , package = results[1]
-                ;
-
-                //needs to be treated as a string so that we can preserve comments
-                meta = meta.replace("%MYTITLE%", title);
-                package.name = name;
                 q.all([
-                    q.nfcall(fs.writeFile, packagetools.getMetaFilename(), meta),
-                    q.nfcall(fs.writeFile, packagetools.getPackageFilename(), JSON.stringify(package, null, 4)),
+                    //needs to be read as a string so that we can preserve comments
+                    q.nfcall(utils.getStringFile, packagetools.getMetaFilename()),
+                    q.nfcall(utils.getJsonFile, packagetools.getPackageFilename())
                 ]).then(function(results) {
-                    console.log('DONE');
-                }, console.error);
-            }, console.error).fail(console.error);
-        });
-    });
+                    var meta = results[0]
+                    , package = results[1]
+                    ;
+
+                    //needs to be treated as a string so that we can preserve comments
+                    meta = meta.replace("%MYTITLE%", title);
+                    package.name = name;
+                    q.all([
+                        q.nfcall(fs.writeFile, packagetools.getMetaFilename(), meta),
+                        q.nfcall(fs.writeFile, packagetools.getPackageFilename(), JSON.stringify(package, null, 4)),
+                    ]).then(function() {
+                        gittools.initialCommit(dest);
+                    });
+                }, console.error).fail(console.error);
+            });
+        })
+        .catch(function(err) {
+            console.error('Failed validating config:',  err);
+            process.exit(1);
+        })
+        ;
 }
 
 /**
@@ -269,6 +329,8 @@ function help(command, showGeneral) {
         , 'remove_key': 'dexter remove_key <name|partial value> Delete all SSH public keys with the given name or a single key matching part of the value'
         , 'list_keys': 'dexter list_keys See all the SSH public keys you have registered'
         , 'create': 'dexter create <moduleName> Create a skeleton for a new module'
+        , 'init': 'dexter init <dir> Initialize a Dexter git remote in the given directory'
+        , 'push': 'dexter push <dir> Push your most recently committed code to Dexter'
         };
     if(helptext[command]) console.log(helptext[command]);
     else {
