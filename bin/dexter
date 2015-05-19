@@ -275,7 +275,9 @@ function create(title) {
                         q.nfcall(fs.writeFile, packagetools.getMetaFilename(), meta),
                         q.nfcall(fs.writeFile, packagetools.getPackageFilename(), JSON.stringify(package, null, 4)),
                     ]).then(function() {
-                        gittools.initialCommit(dest);
+                        gittools.initialCommit(dest).then(function() {;
+                            init(dest);
+                        });
                     });
                 }, console.error).fail(console.error);
             });
