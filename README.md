@@ -4,11 +4,13 @@ RunDexter is an SDK for managing code for rundexter.com.
 
 Installation
 ============
+ ```bash
  git clone https://github.com/lexicalbits/rundexter.git
  cd rundexter
  npm install
  sudo ln -s ./bin/dexter /usr/bin/
  dexter login <your email>
+ ```
 
 Configuration
 =============
