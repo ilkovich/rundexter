@@ -43,10 +43,10 @@ switch(process.argv[2]) {
             init(dir);
         break;
     case 'push':
-        if( !(dir = process.argv[3]) )
-            help('push');
-        else
-            push(dir);
+        if( !(dir = process.argv[3]) ) {
+            dir = '.';
+        }
+        push(dir);
         break;
     case 'login':
         if( !(email = process.argv[3]) ) {
@@ -129,7 +129,6 @@ function init(dir) {
 function push(dir) {
     gittools.pushToDexter(dir)
         .then(function() {
-            console.log('Push finished');
         });
 }
 
