@@ -27,6 +27,28 @@ var rest = require('restler')
 prompt.message = prompt.delimiter = '';
 
 switch(process.argv[2]) {
+    case 'check_name':
+        var title = (process.argv[3]) ? process.argv[3] : 'test';
+        packagetools.isNameAvailable(title)
+            .then(function(result, msg) {
+                switch(result) {
+                    case packagetools.NAME_STATUS.AVAILABLE:
+                        console.log('Package name is available');
+                        break;
+                    case packagetools.NAME_STATUS.OWNED_BY_USER:
+                        console.log('This package already exists and you have access to it');
+                        break;
+                    case packagetools.NAME_STATUS.UNAVAILABLE:
+                        console.log('Someone else owns this package already');
+                        break;
+                    default:
+                        console.error('Unknown response from server:', msg);
+                        break;
+                }
+            }, function(msg) {
+                 console.error(msg);
+            });
+        break;
     case 'create':
         if( !(title = process.argv[3]) )
             help('create');
@@ -243,7 +265,29 @@ function create(title) {
       , dest   = path.resolve('./' + name)
     ;
 
-    gittools.getConfig()
+    var title = (process.argv[3]) ? process.argv[3] : 'test';
+    packagetools.isNameAvailable(title)
+        .then(function(result, msg) {
+            if(result == packagetools.NAME_STATUS.AVAILABLE) {
+                return gittools.getConfig();
+            }
+            var reason;
+            switch(result) {
+                case packagetools.NAME_STATUS.OWNED_BY_USER:
+                    reason = 'You already own a module with this name - you should re-use your old repository instead of trying to create a new one';
+                    break;
+                case packagetools.NAME_STATUS.UNAVAILABLE:
+                    reason = 'Someone else has already created a package with this name.  Choose a new one and try creating the module again.';
+                    break;
+                default:
+                    if(configtools.isDev) {
+                        console.error('Invalid name check:', result);
+                    }
+                    reason = 'We were unable to verify the availability of this module name in Dexter.  Try changing the name and creating again - if you continue to have problems, please contact support.';
+                    break;
+            }
+            throw Error(reason);
+        })
         .then(function(userData) {
             if(userData.email && userData.name) {
                 console.log('Initializing project as', userData.name, '(' + userData.email + ')');
@@ -282,7 +326,7 @@ function create(title) {
             });
         })
         .catch(function(err) {
-            console.error('Failed validating config:',  err);
+            console.error('Failed creating Dexter module:',  err.message);
             process.exit(1);
         })
         ;
@@ -329,6 +373,7 @@ function help(command, showGeneral) {
         , 'add_key': 'dexter add_key <keyname>(optional) Add an SSH key to the system'
         , 'remove_key': 'dexter remove_key <name|partial value> Delete all SSH public keys with the given name or a single key matching part of the value'
         , 'list_keys': 'dexter list_keys See all the SSH public keys you have registered'
+        , 'check_name': 'dexter check_name <moduleName> See if a given module name is available'
         , 'create': 'dexter create <moduleName> Create a skeleton for a new module'
         , 'init': 'dexter init <dir> Initialize a Dexter git remote in the given directory'
         , 'push': 'dexter push <dir> Push your most recently committed code to Dexter'
