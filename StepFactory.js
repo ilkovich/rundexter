@@ -15,7 +15,11 @@ Step.prototype.complete = function() {
 
 Step.prototype.fail = function() {
     this.deferred.reject.apply(this.deferred, arguments);
-}
+};
+
+Step.prototype.log = function() {
+    console.log.apply(console.log, arguments);
+};
 
 var StepFactory = {
     extend: function(BaseStep, ChildStep) {
