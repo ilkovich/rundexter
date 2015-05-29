@@ -2,7 +2,7 @@ var _   = require('lodash')
   , env = require('./env')
 ;
 
-module.exports = {
+module.exports = _.merge({
     "internals": {
         /*
          * SAMPLE DATA 
@@ -47,4 +47,4 @@ module.exports = {
         * "mustache": "A sample {mustache} template"
         */
     }
-};
+}, env);

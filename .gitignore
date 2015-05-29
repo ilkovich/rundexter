@@ -1,2 +1,3 @@
 node_modules
 .*.sw*
+/skel/fixtures/env.js
