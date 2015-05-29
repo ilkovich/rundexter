@@ -6,5 +6,6 @@
   "author": "Someone Somewhere",
   "license": "ISC",
   "dependencies": {
+    "lodash": "^3.9.3"
   }
 }
